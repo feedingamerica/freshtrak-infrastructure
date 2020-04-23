@@ -1,27 +1,18 @@
-# FreshTrak Public Facing API
-![](https://github.com/midohiofoodbank/freshtrak-public/workflows/Pantry%20Finder%20API%20CI/badge.svg)
-[![codecov](https://codecov.io/gh/midohiofoodbank/freshtrak-public/branch/master/graph/badge.svg)](https://codecov.io/gh/midohiofoodbank/freshtrak-public)
+# AWS Infrastructure
 
-Partnership between Can't Stop Columbus and the Mid-Ohio Foodbank to create a public api for the FreshTrak database
+Cloudfomation templates used to deploy the freshtrak infrastructure.
+Currently there is very little infrastructure custom infrastructure needed to run the project so this project can be deployed using the aws cli.
 
-### Original Idea: 
+## Deployment
 
-[Whiteboard Drawing](https://drive.google.com/file/d/1MBzqWMGTDQS-R1mZc68A5V8Heoi3IBMy/view?usp=sharing)
+#### UI
 
-### Vocabulary
+```
+aws cloudformation deploy \
+  --region us-east-2
+  --template-file cloudfront.yml \
+  --stack-name freshtrak-ui-beta \
+  --parameter-overrides CertificateArn=<arn>
+```
 
-**Customer**: A person or family in search of food who may or may not already be engaged with some part of the feeding network. There are ~46 million individuals across the nation who are customers. These individual customers make up over 17 million households.
-
-**Feeding Network**: General term for all people and organizations involved in trying to feed customers.
-
-**Foodbank**: Large distribution centers that provide food to local agencies. There are ~220 foodbanks across the United States.
-
-**Agencies**: Broad term encompassing all types of organizations that work with foodbanks to distribute food to customers. Specific types of agencies include Food pantries, produce markets, Mid-Ohio Markets, soup kitchens, meal sites, etc… There are ~40k agencies across the nation.
-
-**Food Resources**: General term for the services agencies provide.
-
-**Service territory**: General term for all of the geographies served by a single foodbank.
-
-### Journeys
-
-[Customer Journey](https://docs.google.com/document/d/1sIdBbXS5muUR4fwDZVw1pn9QkwEFfW9m3QK5ajZgD3E/edit?usp=sharing) - External Google Doc collecting initial ideas, thoughts, and requirements
+*Note*: Running this stack requires that there is a pre-existing ssl certificate for the domain being deployed. Since cloudfront is global the ACM certificate must be in `us-east-1` even though the cloudformation stack is in `us-east-2`.
