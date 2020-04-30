@@ -4,7 +4,7 @@ Parameters:
   Name:
     Type: String
     Description: A friendly name for this Cloudfront distribution.
-    Default: freshtrak-ui
+    Default: freshtrak-ui-beta
   HostedZoneName:
     Type: String
     Description: The name of the hosted zone
