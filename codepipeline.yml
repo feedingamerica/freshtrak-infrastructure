@@ -1,0 +1,140 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a github integrated deployment pipeline
+Parameters:
+  Repo:
+    Type: String
+    Description: The name of the github repository being deployed
+  Branch:
+    Type: String
+    Description: The name of the branch that should be deployed
+    Default: master
+Resources:
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${Repo}-pipeline'
+      ArtifactStore:
+        Location: !Ref CodePipelineS3Bucket
+        Type: S3
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Checkout
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceCode
+              Configuration:
+                Owner: midohiofoodbank
+                Repo: !Ref Repo
+                OAuthToken: '{{resolve:secretsmanager:github/access_token:SecretString}}'
+                Branch: !Ref Branch
+                PollForSourceChanges: 'false'
+        - Name: Deploy-Beta
+          Actions:
+            - Name: Deploy-Beta
+              InputArtifacts:
+                - Name: SourceCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref BetaCodeBuild
+              RunOrder: 1
+
+  BetaCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${Repo}-beta-codebuild'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+          - Name: BUILD_PHASE
+            Value: beta
+      Source:
+        Type: CODEPIPELINE
+
+  CodePipelineS3Bucket:
+    Type: AWS::S3::Bucket
+
+  CodePipelineWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: '{{resolve:secretsmanager:github/access_token:SecretString}}'
+      Filters:
+        - JsonPath: '$.ref'
+          MatchEquals: refs/heads/{Branch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref CodePipeline
+      TargetAction: Checkout
+      Name: !Sub '${Repo}-webhook'
+      TargetPipelineVersion: !GetAtt CodePipeline.Version
+      RegisterWithThirdParty: 'true'
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineServicePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub '${CodePipelineS3Bucket.Arn}/*'
+                Effect: Allow
+              - Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - !GetAtt BetaCodeBuild.Arn
+                Effect: Allow
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildServicePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*'
+                Effect: Allow
+              - Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub '${CodePipelineS3Bucket.Arn}/*'
+                Effect: Allow
