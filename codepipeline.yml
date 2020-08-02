@@ -172,18 +172,14 @@ Resources:
                   - lambda:CreateFunction
                   - lambda:GetLayerVersion
                   - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionConfiguration
                   - lambda:DeleteFunction
-                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionCode
                   - lambda:AddPermission
                   - lambda:RemovePermission
                   - lambda:InvokeFunction
                 Resource:
-                  - arn:aws:lambda:*:*:function:pantry-finder-api-*
-                  - arn:aws:lambda:*:*:layer:*-pantry-finder-api-*
-                  - arn:aws:lambda:*:*:layer:*-pantry-finder-api-*:*
-                  - arn:aws:lambda:*:*:function:registration-api-*
-                  - arn:aws:lambda:*:*:layer:*-registration-api-*
-                  - arn:aws:lambda:*:*:layer:*-registration-api-*:*
+                  - '*'
                 Effect: Allow
               - Action:
                   - s3:CreateBucket
@@ -191,7 +187,7 @@ Resources:
                   - s3:Describe*
                   - s3:Put*
                   - s3:Get*
-                  - s3:Delete
+                  - s3:Delete*
                 Resource:
                   - arn:aws:s3:::pantry-finder-api-*
                   - arn:aws:s3:::pantry-finder-api-*/*
@@ -223,7 +219,7 @@ Resources:
               - Action:
                   - apigateway:*
                   - cloudformation:DescribeStacks
-                  - logs:DescribeLogGroup
+                  - logs:DescribeLogGroups
                 Resource:
                   - '*'
                 Effect: Allow
