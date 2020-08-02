@@ -166,14 +166,14 @@ Resources:
                   - arn:aws:iam::*:role/registration-api-*
                 Effect: Allow
               - Action:
+                  - lambda:GetLayerVersion
                   - lambda:PublishLayerVersion
                   - lambda:DeleteLayerVersion
                   - lambda:GetFunction
                   - lambda:CreateFunction
-                  - lambda:GetLayerVersion
+                  - lambda:DeleteFunction
                   - lambda:GetFunctionConfiguration
                   - lambda:UpdateFunctionConfiguration
-                  - lambda:DeleteFunction
                   - lambda:UpdateFunctionCode
                   - lambda:AddPermission
                   - lambda:RemovePermission
