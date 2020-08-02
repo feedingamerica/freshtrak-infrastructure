@@ -138,3 +138,92 @@ Resources:
                 Resource:
                   - !Sub '${CodePipelineS3Bucket.Arn}/*'
                 Effect: Allow
+        - PolicyName: JetsDeploymentPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                Resource:
+                  - arn:aws:cloudformation:*:*:stack/pantry-finder-api-*
+                  - arn:aws:cloudformation:*:*:stack/pantry-finder-api-*/*
+                  - arn:aws:cloudformation:*:*:stack/registration-api-*
+                  - arn:aws:cloudformation:*:*:stack/registration-api-*/*
+                Effect: Allow
+              - Action:
+                  - iam:PassRole
+                  - iam:GetRole*
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DeleteRole
+                Resource:
+                  - arn:aws:iam::*:role/pantry-finder-api-*
+                  - arn:aws:iam::*:role/registration-api-*
+                Effect: Allow
+              - Action:
+                  - lambda:PublishLayerVersion
+                  - lambda:DeleteLayerVersion
+                  - lambda:GetFunction
+                  - lambda:CreateFunction
+                  - lambda:GetLayerVersion
+                  - lambda:GetFunctionConfiguration
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:InvokeFunction
+                Resource:
+                  - arn:aws:lambda:*:*:function:pantry-finder-api-*
+                  - arn:aws:lambda:*:*:layer:*-pantry-finder-api-*
+                  - arn:aws:lambda:*:*:layer:*-pantry-finder-api-*:*
+                  - arn:aws:lambda:*:*:function:registration-api-*
+                  - arn:aws:lambda:*:*:layer:*-registration-api-*
+                  - arn:aws:lambda:*:*:layer:*-registration-api-*:*
+                Effect: Allow
+              - Action:
+                  - s3:CreateBucket
+                  - s3:List*
+                  - s3:Describe*
+                  - s3:Put*
+                  - s3:Get*
+                  - s3:Delete
+                Resource:
+                  - arn:aws:s3:::pantry-finder-api-*
+                  - arn:aws:s3:::pantry-finder-api-*/*
+                  - arn:aws:s3:::registration-api-*
+                  - arn:aws:s3:::registration-api-*/*
+                Effect: Allow
+              - Action:
+                  - logs:DeleteLogGroup
+                Resource:
+                  - arn:aws:logs:*:*:log-group:/aws/lambda/pantry-finder-api-*:*:*
+                  - arn:aws:logs:*:*:log-group:/aws/lambda/registration-api-*:*:*
+                Effect: Allow
+              - Action:
+                  - events:PutRule
+                  - events:DescribeRule
+                  - events:RemoveTargets
+                  - events:DeleteRule
+                  - events:PutTargets
+                Resource:
+                  - arn:aws:events:*:*:rule/pantry-finder-api-*
+                  - arn:aws:events:*:*:rule/registration-api-*
+                Effect: Allow
+              - Action:
+                  - ssm:GetParameter
+                Resource:
+                  - arn:aws:ssm:*:*:parameter/*pantry-finder-api*
+                  - arn:aws:ssm:*:*:parameter/*registration-api*
+                Effect: Allow
+              - Action:
+                  - apigateway:*
+                  - cloudformation:DescribeStacks
+                  - logs:DescribeLogGroup
+                Resource:
+                  - '*'
+                Effect: Allow
