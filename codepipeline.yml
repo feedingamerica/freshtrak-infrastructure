@@ -47,6 +47,27 @@ Resources:
               Configuration:
                 ProjectName: !Ref BetaCodeBuild
               RunOrder: 1
+        - Name: Approval-to-Promote-to-Prod
+          Actions:
+            - Name: Promote-to-Prod
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+        - Name: Deploy-Prod
+          Actions:
+            - Name: Deploy-Prod
+              InputArtifacts:
+                - Name: SourceCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref ProdCodeBuild
+              RunOrder: 1
 
   BetaCodeBuild:
     Type: AWS::CodeBuild::Project
@@ -64,6 +85,35 @@ Resources:
             Value: beta
       Source:
         Type: CODEPIPELINE
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-03d1217e55919958e
+        Subnets:
+          - subnet-0dcec794080e1b017
+        VpcId: vpc-06b80390c45f8e8e0
+
+  ProdCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${Repo}-prod-codebuild'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+          - Name: BUILD_PHASE
+            Value: production
+      Source:
+        Type: CODEPIPELINE
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-03d1217e55919958e
+        Subnets:
+          - subnet-0dcec794080e1b017
+        VpcId: vpc-06b80390c45f8e8e0
 
   CodePipelineS3Bucket:
     Type: AWS::S3::Bucket
@@ -137,6 +187,18 @@ Resources:
                   - s3:GetObject
                 Resource:
                   - !Sub '${CodePipelineS3Bucket.Arn}/*'
+                Effect: Allow
+              - Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:CreateNetworkInterfacePermission
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                Resource:
+                  - '*'
                 Effect: Allow
         - PolicyName: JetsDeploymentPolicy
           PolicyDocument:
