@@ -200,6 +200,20 @@ Resources:
                 Resource:
                   - '*'
                 Effect: Allow
+        - PolicyName: CloudFrontDeploymentPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:PutObject*
+                Resource:
+                  - arn:aws:s3:::freshtrak-ui-*/*
+                Effect: Allow
+              - Action:
+                  - cloudfront:CreateInvalidation
+                Resource:
+                  - '*'
+                Effect: Allow
         - PolicyName: JetsDeploymentPolicy
           PolicyDocument:
             Version: 2012-10-17
