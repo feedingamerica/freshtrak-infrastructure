@@ -1,0 +1,301 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Creates a github integrated deployment pipeline
+Parameters:
+  Repo:
+    Type: String
+    Description: The name of the github repository being deployed
+  Branch:
+    Type: String
+    Description: The name of the branch that should be deployed
+    Default: master
+Resources:
+  CodePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub '${Repo}-pipeline'
+      ArtifactStore:
+        Location: !Ref CodePipelineS3Bucket
+        Type: S3
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: Checkout
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: '1'
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceCode
+              Configuration:
+                Owner: midohiofoodbank
+                Repo: !Ref Repo
+                OAuthToken: '{{resolve:secretsmanager:github/access_token:SecretString}}'
+                Branch: !Ref Branch
+                PollForSourceChanges: 'false'
+        - Name: Deploy-Beta
+          Actions:
+            - Name: Deploy-Beta
+              InputArtifacts:
+                - Name: SourceCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref BetaCodeBuild
+              RunOrder: 1
+        - Name: Approval-to-Promote-to-Prod
+          Actions:
+            - Name: Promote-to-Prod
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Version: "1"
+                Provider: Manual
+        - Name: Deploy-Prod
+          Actions:
+            - Name: Deploy-Prod
+              InputArtifacts:
+                - Name: SourceCode
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: '1'
+                Provider: CodeBuild
+              Configuration:
+                ProjectName: !Ref ProdCodeBuild
+              RunOrder: 1
+
+  BetaCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${Repo}-beta-codebuild'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+          - Name: BUILD_PHASE
+            Value: beta
+      Source:
+        Type: CODEPIPELINE
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-03d1217e55919958e
+        Subnets:
+          - subnet-0dcec794080e1b017
+        VpcId: vpc-06b80390c45f8e8e0
+
+  ProdCodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${Repo}-prod-codebuild'
+      ServiceRole: !GetAtt CodeBuildServiceRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:4.0
+        EnvironmentVariables:
+          - Name: BUILD_PHASE
+            Value: production
+      Source:
+        Type: CODEPIPELINE
+      VpcConfig:
+        SecurityGroupIds:
+          - sg-03d1217e55919958e
+        Subnets:
+          - subnet-0dcec794080e1b017
+        VpcId: vpc-06b80390c45f8e8e0
+
+  CodePipelineS3Bucket:
+    Type: AWS::S3::Bucket
+
+  CodePipelineWebhook:
+    Type: AWS::CodePipeline::Webhook
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: '{{resolve:secretsmanager:github/access_token:SecretString}}'
+      Filters:
+        - JsonPath: '$.ref'
+          MatchEquals: refs/heads/{Branch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref CodePipeline
+      TargetAction: Checkout
+      Name: !Sub '${Repo}-webhook'
+      TargetPipelineVersion: !GetAtt CodePipeline.Version
+      RegisterWithThirdParty: 'true'
+
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineServicePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !Sub '${CodePipelineS3Bucket.Arn}/*'
+                Effect: Allow
+              - Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource:
+                  - !GetAtt BetaCodeBuild.Arn
+                Effect: Allow
+
+  CodeBuildServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildServicePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*'
+                Effect: Allow
+              - Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub '${CodePipelineS3Bucket.Arn}/*'
+                Effect: Allow
+              - Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:CreateNetworkInterfacePermission
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
+                Resource:
+                  - '*'
+                Effect: Allow
+        - PolicyName: CloudFrontDeploymentPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:PutObject*
+                Resource:
+                  - arn:aws:s3:::freshtrak-ui-*/*
+                Effect: Allow
+              - Action:
+                  - cloudfront:CreateInvalidation
+                Resource:
+                  - '*'
+                Effect: Allow
+        - PolicyName: JetsDeploymentPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:DeleteStack
+                  - cloudformation:UpdateStack
+                Resource:
+                  - arn:aws:cloudformation:*:*:stack/pantry-finder-api-*
+                  - arn:aws:cloudformation:*:*:stack/pantry-finder-api-*/*
+                  - arn:aws:cloudformation:*:*:stack/registration-api-*
+                  - arn:aws:cloudformation:*:*:stack/registration-api-*/*
+                Effect: Allow
+              - Action:
+                  - iam:PassRole
+                  - iam:GetRole*
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DeleteRole
+                Resource:
+                  - arn:aws:iam::*:role/pantry-finder-api-*
+                  - arn:aws:iam::*:role/registration-api-*
+                Effect: Allow
+              - Action:
+                  - lambda:GetLayerVersion
+                  - lambda:PublishLayerVersion
+                  - lambda:DeleteLayerVersion
+                  - lambda:GetFunction
+                  - lambda:CreateFunction
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:UpdateFunctionCode
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:InvokeFunction
+                Resource:
+                  - '*'
+                Effect: Allow
+              - Action:
+                  - s3:CreateBucket
+                  - s3:List*
+                  - s3:Describe*
+                  - s3:Put*
+                  - s3:Get*
+                  - s3:Delete*
+                Resource:
+                  - arn:aws:s3:::pantry-finder-api-*
+                  - arn:aws:s3:::pantry-finder-api-*/*
+                  - arn:aws:s3:::registration-api-*
+                  - arn:aws:s3:::registration-api-*/*
+                Effect: Allow
+              - Action:
+                  - logs:DeleteLogGroup
+                Resource:
+                  - arn:aws:logs:*:*:log-group:/aws/lambda/pantry-finder-api-*:*:*
+                  - arn:aws:logs:*:*:log-group:/aws/lambda/registration-api-*:*:*
+                Effect: Allow
+              - Action:
+                  - events:PutRule
+                  - events:DescribeRule
+                  - events:RemoveTargets
+                  - events:DeleteRule
+                  - events:PutTargets
+                Resource:
+                  - arn:aws:events:*:*:rule/pantry-finder-api-*
+                  - arn:aws:events:*:*:rule/registration-api-*
+                Effect: Allow
+              - Action:
+                  - ssm:GetParameter
+                Resource:
+                  - arn:aws:ssm:*:*:parameter/*pantry-finder-api*
+                  - arn:aws:ssm:*:*:parameter/*registration-api*
+                Effect: Allow
+              - Action:
+                  - apigateway:*
+                  - cloudformation:DescribeStacks
+                  - logs:DescribeLogGroups
+                Resource:
+                  - '*'
+                Effect: Allow
