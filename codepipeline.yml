@@ -159,6 +159,7 @@ Resources:
                   - codebuild:BatchGetBuilds
                 Resource:
                   - !GetAtt BetaCodeBuild.Arn
+                  - !GetAtt ProdCodeBuild.Arn
                 Effect: Allow
 
   CodeBuildServiceRole:
