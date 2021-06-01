@@ -83,14 +83,12 @@ Resources:
           AliasTarget:
             DNSName: !GetAtt [ CloudfrontDistribution, DomainName ]
             # See https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-aliastarget.html
-            # HostedZoneId: Z2FDTNDATAQYW2
-            HostedZoneId: !GetAtt domainNameResource.DistributionHostedZoneId
+            HostedZoneId: Z2FDTNDATAQYW2
         - Name: !Sub "www.${UrlPrefix}${HostedZoneName}."
           Type: A
           AliasTarget:
             DNSName: s3-website.us-east-2.amazonaws.com
-            # HostedZoneId: Z2O1EMRO9K5GLX
-            HostedZoneId: !GetAtt domainNameResource.DistributionHostedZoneId
+            HostedZoneId: Z2O1EMRO9K5GLX
 Outputs:
   S3WebsiteBucketWebsiteURL:
     Description: The S3 bucket used for static web hosting
